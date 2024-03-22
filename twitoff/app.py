@@ -1,12 +1,7 @@
-from flask import Flask, render_template
+from flask import Flask, render_template, request
 from .models import DB, User
 from .twitter import add_or_update_user
-
-
-def add_all_to_db(data):
-    for item in data:
-        if item:
-            DB.session.add(item)
+from .predict import predict_user
 
 
 def create_app():
@@ -29,7 +24,7 @@ def create_app():
 
         DB.create_all()
 
-        return render_template('base.html', title="Reset")
+        return render_template('base.html', title="Database Reset")
 
     @app.route('/populate')
     def populate():
@@ -54,7 +49,11 @@ def create_app():
 
         users = User.query.all()
 
-        return render_template('base.html', title="populate", users=users)
+        return render_template(
+            'base.html',
+            title="Database Populated",
+            users=users
+        )
 
     @app.route('/update')
     def update():
@@ -65,10 +64,66 @@ def create_app():
         for username in usernames:
             add_or_update_user(username)
 
-        return render_template('base.html', title='update', users=users)
+        return render_template(
+            'base.html',
+            title='Database Updated',
+            users=users
+        )
+
+    @app.route('/user', methods=['POST'])
+    @app.route('/user/<username>', methods=['GET'])
+    def user(username=None, message=''):
+        username = username or request.values['username']
+
+        try:
+            if request.method == 'POST':
+                add_or_update_user(username)
+
+                message = f"User: {username} has been successfully added"
+
+            tweets = User.query.filter(User.username == username).one().tweets
+
+        except Exception as e:
+            message = f"Error showing {username}: {e}"
+            tweets = []
+
+        return render_template(
+            'user.html',
+            title=username,
+            message=message,
+            tweets=tweets
+        )
+
+    @app.route('/compare', methods=['POST'])
+    def compare():
+        user0, user1 = sorted(
+            [request.values['user0'], request.values['user1']])
+        hypo_text = request.values['tweet_text']
+
+        if user0 == user1:
+            title = "Error"
+            message = "Cannot Compare User to Themselves"
+        else:
+            prediction = predict_user(user0, user1, hypo_text)
+            title = 'Comparison Results'
+            message = f'''
+                        {prediction}::{user0 if prediction == 0 else user1}
+                        is more likely to say {hypo_text}
+                    '''
+
+        return render_template(
+            'prediction.html',
+            title=title,
+            message=message
+        )
 
     return app
 
+
+# def add_all_to_db(data):
+#     for item in data:
+#         if item:
+#             DB.session.add(item)
 
 # ryan = User(id=1, username='ryan')
 # bernie = User(id=2, username='bernie')
