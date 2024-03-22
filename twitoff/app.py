@@ -103,6 +103,7 @@ def create_app():
         if user0 == user1:
             title = "Error"
             message = "Cannot Compare User to Themselves"
+
         else:
             prediction = predict_user(user0, user1, hypo_text)
             title = 'Comparison Results'
